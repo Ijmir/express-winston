@@ -150,6 +150,50 @@ exports.errorLogger = function errorLogger(options) {
 };
 
 //
+// ### function requestLogger(options)
+// #### @options {Object} options to initialize the middleware.
+//
+
+
+exports.requestLogger = function requestLogger(options) {
+
+  ensureValidOptions(options);
+
+  options.requestWhitelist = options.requestWhitelist || exports.requestWhitelist;
+  options.requestFilter = options.requestFilter || exports.defaultRequestFilter;
+  options.winstonInstance = options.winstonInstance || (new winston.Logger ({ transports: options.transports }));
+  options.msg = options.msg || "HTTP {{req.method}} {{req.url}}";
+  options.baseMeta = options.baseMeta || {};
+  options.metaField = options.metaField || null;
+  options.level = options.level || "info";
+
+  // Using mustache style templating
+  var template = _.template(options.msg, {
+    interpolate: /\{\{(.+?)\}\}/g
+  });
+
+  return function (req, res, next) {
+
+      // Let winston gather all the error data.
+      var meta = {};
+      meta.req = filterObject(req, options.requestWhitelist, options.requestFilter);
+
+      if (options.metaField) {
+          var newMeta = {};
+          newMeta[options.metaField] = meta;
+          meta = newMeta;
+      }
+
+      meta = _.assign(meta, options.baseMeta);
+
+      // This is fire and forget, we don't want logging to hold up the request so don't wait for the callback
+      options.winstonInstance.log(options.level, template({req: req, res: res}), meta);
+
+      next();
+  };
+};
+
+//
 // ### function logger(options)
 // #### @options {Object} options to initialize the middleware.
 //
